@@ -1,0 +1,1 @@
+g++ main.cpp ContiguousKV.cpp PagedKV.cpp -o MiniKV.exe -std=c++14 -g -O2

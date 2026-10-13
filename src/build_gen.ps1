@@ -1,0 +1,1 @@
+g++ gen.cpp -o gen.exe -std=c++14 -g -O2
