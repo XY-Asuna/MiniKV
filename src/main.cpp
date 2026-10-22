@@ -1,5 +1,5 @@
 #include "ContiguousKV.h"
-#include "PagedKV.h"
+//#include "PagedKV.h"
 #include "check.h"
 #include <iostream>
 #include <string>
@@ -7,6 +7,7 @@
 
 int main(int argc, char* argv[]) {
 
+    freopen("data.txt","r",stdin);
     std::string mode="contiguous";
     for(int i=1;i<argc;i++){
         if(std::string(argv[i])=="--mode"){
@@ -23,8 +24,8 @@ int main(int argc, char* argv[]) {
     MiniKV* manager;
     if(mode=="contiguous")
         manager = new ContiguousKV (n, s);
-    else if(mode=="paged")
-        manager = new PagedKV (n, s);
+    //else if(mode=="paged")
+    //    manager = new PagedKV (n, s);
     else{
         std::cerr<<"Unknown mode: "<<mode<<std::endl;
         return 1;
@@ -60,4 +61,6 @@ int main(int argc, char* argv[]) {
             std::cout << '\n';
         }
     }
+    delete manager;
+    return 0;
 }
