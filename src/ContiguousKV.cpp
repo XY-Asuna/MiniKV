@@ -1,7 +1,8 @@
 #include "ContiguousKV.h"
+
 namespace
 {
-    const int bucketsSize = 17;
+    using ::bucketsSize;
     int fnv1a(const std::string& s)
     {
         long long H=2166136261;
@@ -64,22 +65,26 @@ bool ContiguousKV::allocate(const std::string& id, int tokenCount)
     Request* target_ = const_cast<Request*>(lookup(id));
     if(target_) return 0;
     //寻找连续空间
+    
     int start = 0, block_count=0;
     while(start < n_)
     {
         if(memory_[start].owner=="")
             block_count++;
         else    block_count=0;
-        if(s_*block_count >= tokenCount)
+        if((long long)s_*block_count >= tokenCount)
         {
             start -= block_count-1;
             break;
         }
         start++;
     }
-    if(start >= n_) return 0;
+    if(start >= n_)
+        return 0;
     //允许分配 
-    
+    total_token_count += tokenCount;
+    total_block_count += block_count;
+    unused_token_count += (long long)s_ * block_count - tokenCount;
     int buckets_id = fnv1a(id);
     Request* p = buckets_[buckets_id];
     while(p->hashNext)
@@ -123,7 +128,8 @@ bool ContiguousKV::append(const std::string& id, int newTokenCount)
     {
         memory_[start].used += newTokenCount;
         target_->tokenCount += newTokenCount;
-        
+        unused_token_count -= newTokenCount;
+        total_token_count += newTokenCount;
         return 1;
     }
     
@@ -134,10 +140,15 @@ bool ContiguousKV::append(const std::string& id, int newTokenCount)
             block_count++;
         else
             return 0;
-        if(last_left + s_ * block_count >= newTokenCount)
+        if((long long)last_left + s_ * block_count >= newTokenCount)
             break;
     }
-    if(last_left + s_ * block_count < newTokenCount) return 0;
+    if((long long)last_left + s_ * block_count < newTokenCount) return 0;
+
+    total_token_count += newTokenCount;
+    total_block_count += block_count;
+    unused_token_count += (long long)s_ * block_count - newTokenCount;
+
     //补齐
     memory_[start].used += last_left;
     target_->tokenCount += newTokenCount;
@@ -173,6 +184,12 @@ bool ContiguousKV::free(const std::string& id)
 {
     Request* target_ = const_cast<Request*>(lookup(id));
     if(!target_) return 0;
+    unused_token_count -= s_ - (target_->tokenCount % s_ == 0 ? s_ : target_->tokenCount % s_);
+
+    total_token_count -= target_->tokenCount;
+    total_block_count -= (target_->tail->index - target_->head->index + 1);
+
+    
     int start = target_->head->index , end = target_->tail->index;
     BlockNode* ptr = target_->head;
     for(int i=start;i<=end;i++)

@@ -1,7 +1,7 @@
 #include "PagedKV.h"
 namespace
 {
-    const int bucketsSize = 17;
+    using ::bucketsSize;
     int fnv1a(const std::string& s)
     {
         long long H=2166136261;
@@ -70,14 +70,17 @@ bool PagedKV::allocate(const std::string& id, int tokenCount)
     {
         if(memory_[i].owner=="")
             to_use_index[available_count++]=i;
-        if(s_ * available_count >= tokenCount)
+        if((long long)s_ * available_count >= tokenCount)
             break;
     }
-    if(s_ * available_count < tokenCount)
+    if((long long)s_ * available_count < tokenCount)
     {
         delete[] to_use_index;
         return 0;
     }
+    total_token_count += tokenCount;
+    total_block_count += available_count;
+    unused_token_count += (long long)s_ * available_count - tokenCount;
     //允许创建
     int buckets_id = fnv1a(id);
     Request* p = buckets_[buckets_id];
@@ -123,7 +126,8 @@ bool PagedKV::append(const std::string& id, int newTokenCount)
     {
         target_->tokenCount += newTokenCount;
         memory_[target_->tail->index].used += newTokenCount;
-
+        total_token_count += newTokenCount;
+        unused_token_count -= newTokenCount;
         return 1;
     }
     //判断是否空间足够
@@ -133,14 +137,19 @@ bool PagedKV::append(const std::string& id, int newTokenCount)
     {
         if(memory_[i].owner == "")
             to_use_index[available_count++] = i;
-        if(last_left + s_ * available_count >= newTokenCount)
+        if((long long)last_left + s_ * available_count >= newTokenCount)
             break;
     }
-    if(last_left + s_ * available_count < newTokenCount)
+    if((long long)last_left + s_ * available_count < newTokenCount)
     {
         delete[] to_use_index;
         return 0;
     }
+    total_token_count += newTokenCount;
+    total_block_count += available_count;
+    unused_token_count += (long long)s_ * available_count - newTokenCount;
+    //补齐
+
     target_->tokenCount += newTokenCount;
     newTokenCount -= last_left;
     BlockNode* ptr = target_->tail;
@@ -175,6 +184,9 @@ bool PagedKV::free(const std::string& id)
 {
     Request* target_ = const_cast<Request*>(lookup(id));
     if(!target_) return 0;
+    total_token_count -= target_->tokenCount;
+    
+    unused_token_count -= s_ - (target_->tokenCount % s_ == 0 ? s_ : target_->tokenCount % s_);
     BlockNode* ptr = target_->head;
     while(ptr)
     {
@@ -184,6 +196,7 @@ bool PagedKV::free(const std::string& id)
         BlockNode* temp=ptr;
         ptr=ptr->next;
         delete temp; 
+        total_block_count--;
     }
     int buckets_id = fnv1a(id);
     Request* p = buckets_[buckets_id];

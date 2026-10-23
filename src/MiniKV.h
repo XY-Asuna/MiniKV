@@ -4,6 +4,7 @@
 #include<iostream>
 #include <string>
 
+extern int bucketsSize; // 定义于 main.cpp，默认 17，可由 --buckets 修改
 struct Block {
     std::string owner; // 空字符串表示空闲
     int used;          // 已使用的 Token 数

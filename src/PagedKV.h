@@ -4,6 +4,10 @@
 #include "check.h"
 #include "MiniKV.h"
 
+extern int bucketsSize;
+extern int total_token_count;
+extern int total_block_count;
+extern int unused_token_count;
 class PagedKV : public MiniKV {
 public:
     PagedKV(int blockCount, int blockSize);
