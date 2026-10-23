@@ -1,5 +1,5 @@
 #include "ContiguousKV.h"
-//#include "PagedKV.h"
+#include "PagedKV.h"
 #include "check.h"
 #include <iostream>
 #include <string>
@@ -24,8 +24,8 @@ int main(int argc, char* argv[]) {
     MiniKV* manager;
     if(mode=="contiguous")
         manager = new ContiguousKV (n, s);
-    //else if(mode=="paged")
-    //    manager = new PagedKV (n, s);
+    else if(mode=="paged")
+        manager = new PagedKV (n, s);
     else{
         std::cerr<<"Unknown mode: "<<mode<<std::endl;
         return 1;

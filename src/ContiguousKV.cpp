@@ -108,7 +108,6 @@ bool ContiguousKV::allocate(const std::string& id, int tokenCount)
     }
     new_temp->tail=ptr;
 
-    //displayMemory();
     return 1;
 }
 bool ContiguousKV::append(const std::string& id, int newTokenCount) 
@@ -139,12 +138,10 @@ bool ContiguousKV::append(const std::string& id, int newTokenCount)
             break;
     }
     if(last_left + s_ * block_count < newTokenCount) return 0;
-    //std::cout<<last_left<<"\n";
     //补齐
     memory_[start].used += last_left;
     target_->tokenCount += newTokenCount;
     newTokenCount -= last_left;
-    //std::cout<<newTokenCount<<"\n";
     BlockNode* ptr = target_->tail;
     for(int i=start+1;i<start+1+block_count;i++)
     {
@@ -166,12 +163,9 @@ const Request* ContiguousKV::lookup(const std::string& id) const
     Request* p = buckets_[buckets_id]->hashNext;
     while(p)
     {
-        //std::cout<<p->id<<"\n";
         if(p->id == id) break;
         p=p->hashNext;
     }
-    //std::cout<<"LOOKUP "<<id<<" "<<(p?"FOUND":"NOT FOUND")<<std::endl;
-    //if(p && p->head) std::cout << p->tokenCount<<"\n";
     return p;
 }
 bool ContiguousKV::free(const std::string& id) 
