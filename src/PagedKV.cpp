@@ -1,4 +1,5 @@
 #include "PagedKV.h"
+
 namespace
 {
     using ::bucketsSize;
@@ -14,6 +15,7 @@ namespace
     {
         return x<y?x:y;
     }
+    int* to_use_index;
 }
 
 PagedKV::PagedKV(int blockCount, int blockSize):n_(blockCount),s_(blockSize)
@@ -33,6 +35,7 @@ PagedKV::PagedKV(int blockCount, int blockSize):n_(blockCount),s_(blockSize)
         buckets_[i]->id="";
         buckets_[i]->tokenCount=-1;
     }
+    to_use_index = new int[blockCount];
 }
 PagedKV::~PagedKV()
 {
@@ -55,6 +58,7 @@ PagedKV::~PagedKV()
         }
     }
     delete[] buckets_;
+    delete[] to_use_index;
 }
 
 bool PagedKV::allocate(const std::string& id, int tokenCount)
@@ -65,7 +69,6 @@ bool PagedKV::allocate(const std::string& id, int tokenCount)
     if(target_) return 0;
     //判断是否空间足够
     int available_count = 0;
-    int* to_use_index = new int[n_];
     for(int i=0;i<n_;i++)
     {
         if(memory_[i].owner=="")
@@ -74,10 +77,7 @@ bool PagedKV::allocate(const std::string& id, int tokenCount)
             break;
     }
     if((long long)s_ * available_count < tokenCount)
-    {
-        delete[] to_use_index;
         return 0;
-    }
     total_token_count += tokenCount;
     total_block_count += available_count;
     unused_token_count += (long long)s_ * available_count - tokenCount;
@@ -111,7 +111,6 @@ bool PagedKV::allocate(const std::string& id, int tokenCount)
         ptr=temp_node;
     }
     new_temp->tail=ptr;
-    delete[] to_use_index;
     return 1;
 }
 bool PagedKV::append(const std::string& id, int newTokenCount)
@@ -132,7 +131,6 @@ bool PagedKV::append(const std::string& id, int newTokenCount)
     }
     //判断是否空间足够
     int available_count = 0;
-    int* to_use_index = new int[n_];
     for(int i=0;i<n_;i++)
     {
         if(memory_[i].owner == "")
@@ -141,10 +139,7 @@ bool PagedKV::append(const std::string& id, int newTokenCount)
             break;
     }
     if((long long)last_left + s_ * available_count < newTokenCount)
-    {
-        delete[] to_use_index;
         return 0;
-    }
     total_token_count += newTokenCount;
     total_block_count += available_count;
     unused_token_count += (long long)s_ * available_count - newTokenCount;
@@ -166,7 +161,6 @@ bool PagedKV::append(const std::string& id, int newTokenCount)
         ptr = ptr->next;
     }
     target_->tail = ptr;
-    delete[] to_use_index;
     return 1;
 }
 const Request* PagedKV::lookup(const std::string& id) const

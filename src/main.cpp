@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <sstream>
 
 // 哈希桶数量，默认 17；可用 --buckets <n> 在运行时修改。
 int bucketsSize = 17;
@@ -70,11 +71,12 @@ double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int 
     unused_token_count = 0;
     total_token_count = total_block_count = 0;
     
-    int MU_count = 0 , UN_count = 0;
-    double MU_sum = 0.0 , UN_sum = 0.0;
+    int MU_count = 0 , UN_count = 0 , FM_count = 0;
+    double MU_sum = 0.0 , UN_sum = 0.0 , FM_sum = 0.0;
     
 
     std::streambuf* savedBuf = nullptr;
+    std::stringbuf savedStrBuf;
     if (silent)
     {
         savedBuf = std::cout.rdbuf();
@@ -99,11 +101,6 @@ double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int 
             {
                 ++allocate_failure_count;
                 std::cout << "FAIL" << '\n';
-                if(total_block_count > 0)
-                {
-                    MU_count++ , MU_sum += 100.0 * total_token_count / total_block_count / s;
-                    UN_count++ , UN_sum += 100.0 * unused_token_count / total_block_count / s;
-                }
             }
             else
                 std::cout << "OK" << '\n';
@@ -113,11 +110,6 @@ double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int 
             {
                 ++allocate_failure_count;
                 std::cout << "FAIL" << '\n';
-                if(total_block_count > 0)
-                {
-                    MU_count++ , MU_sum += 100.0 * total_token_count / total_block_count / s;
-                    UN_count++ , UN_sum += 100.0 * unused_token_count / total_block_count / s;
-                }
             }
             else
                 std::cout << "OK" << '\n';
@@ -139,13 +131,52 @@ double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int 
             break;
         }
         case OP_REQUEST:
-            kv.displayRequest(op.id);
-            std::cout << '\n';
+            if(!silent)
+            {
+                kv.displayRequest(op.id);
+                std::cout << '\n';
+            }
             break;
         case OP_MEMORY:
-            kv.displayMemory();
-            std::cout << '\n';
+            if(!silent)
+            {
+                kv.displayMemory();
+                std::cout << '\n';
+            }
             break;
+        }
+        //采样
+        if(!(i % 1000))
+        {
+            if(total_block_count > 0)
+            {
+                MU_count++ , MU_sum += 100.0 * total_token_count / total_block_count / s;
+                UN_count++ , UN_sum += 100.0 * unused_token_count / total_block_count / s;
+            }
+            if(silent && n - total_block_count > n / 20)
+            {
+                std::cout.rdbuf(&savedStrBuf);
+                kv.displayMemory();
+                std::string memoryStr = savedStrBuf.str();
+                int len = memoryStr.length();
+                int max_contiguous = 0 , cur_contiguous = 0;
+                for(int j=0;j<len;j++)
+                {
+                    if(memoryStr[j] == ' ')
+                        continue;
+                    if(memoryStr[j] == '-')
+                        cur_contiguous++;
+                    else
+                    {
+                        max_contiguous = std::max(max_contiguous,cur_contiguous);
+                        cur_contiguous = 0;
+                    }
+                }
+                max_contiguous = std::max(max_contiguous,cur_contiguous);
+                FM_count++ , FM_sum += 100.0 * (1 - 1.0 * max_contiguous / (n - total_block_count));
+                std::cout.rdbuf(nullptr);
+                savedStrBuf.str("");
+            }
         }
     }
 
@@ -163,16 +194,15 @@ double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int 
                   << " q=" << q << '\n';
         std::cerr << "[timing] " << mode << ": " << std::chrono::duration<double, std::milli>(end - start).count() << " ms" << std::endl;
         std::cerr << "allocate failure count: " << allocate_failure_count << std::endl;
+        std::cerr << "unused token count: " << unused_token_count << std::endl;
         if(MU_count > 0)
             std::cerr << "average Memory Utilization(total token/total block capacity): " << MU_sum / MU_count << "\%\n";
+        if(FM_count > 0)
+            std::cerr << "average Fragmentation: " << FM_sum / FM_count << "\%\n";
         if(UN_count > 0)
             std::cerr << "average Unused Token Utilization(unused token/total block capacity): " << UN_sum / UN_count << "\%\n";   
         std::cerr << "---------------\n";
     }
-    
-    
-    
-
     return std::chrono::duration<double, std::milli>(end - start).count();
 }
 
@@ -180,7 +210,7 @@ double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int 
 
 int main(int argc, char* argv[])
 {
-    // --perf：性能测试模式，屏蔽全部中间输出；--buckets <n>：修改哈希桶数量（缺省 17）。
+    // --perf：性能测试模式，屏蔽全部中间输出；--turn <n>：指定测试数据文件（缺省 gen.in）；--buckets <n>：修改哈希桶数量（缺省 17）。
     bool perfMode = false;
     char* turn = nullptr;
     for (int i = 1; i < argc; ++i)
