@@ -153,7 +153,7 @@ double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int 
                 MU_count++ , MU_sum += 100.0 * total_token_count / total_block_count / s;
                 UN_count++ , UN_sum += 100.0 * unused_token_count / total_block_count / s;
             }
-            if(silent && n - total_block_count > n / 20)
+            if(silent && n - total_block_count > 0)
             {
                 std::cout.rdbuf(&savedStrBuf);
                 kv.displayMemory();

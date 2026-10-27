@@ -5,11 +5,11 @@ namespace
     using ::bucketsSize;
     int fnv1a(const std::string& s)
     {
-        long long H=2166136261;
+        unsigned long long H=14695981039346656037ULL;
         for(char c : s)
-            H^=c,H*=16777619,H%=bucketsSize;
-        H = ((H % bucketsSize) + bucketsSize) % bucketsSize;
-        return H;
+            H^=(unsigned char)c,H*=1099511628211ULL;
+        H = H % (unsigned long long)bucketsSize;
+        return (int)H;
     }
     int min(const int x,const int y)
     {

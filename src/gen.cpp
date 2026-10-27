@@ -33,13 +33,13 @@ int main(int argc, char* argv[]) {
     int n = std::uniform_int_distribution<int>(7000000, 10000000)(rng);
     //const int n = 8;
     
-    const int blockSize = std::pow(2 , std::max(2, int(std::sqrt((*turn - '0' + 1 )*(std::log(*turn - '0' + 1 ))*17 ) )));
+    const int blockSize = (1<<(2*(1+std::stoi(std::string(turn))))); 
         //std::uniform_int_distribution<int>(256, 1024)(rng);
     n = n / blockSize;
     const int q = std::uniform_int_distribution<int>(100000, 100000)(rng);
 
     std::uniform_int_distribution<int> operationDist(0, 7);
-    std::uniform_int_distribution<int> idDist(0, 50);
+    std::uniform_int_distribution<int> idDist(0, 150);
 
     const std::string operations[] = {
         "ALLOC", "ALLOC", "APPEND", "APPEND",
@@ -57,7 +57,7 @@ int main(int argc, char* argv[]) {
 
         if (op == "ALLOC" || op == "APPEND") {
             const long long upper = static_cast<long long>(
-                std::max(1LL,std::min( 0LL + n * blockSize / q , tokenBudget))
+                std::max(1LL,std::min((long long)(1.5 * n * blockSize / (q / 7)) , tokenBudget))
             );
             const int count =
                 std::uniform_int_distribution<int>(1, upper)(rng);
@@ -67,7 +67,7 @@ int main(int argc, char* argv[]) {
         } else if (op == "FREE" || op == "REQUEST" || op == "LOOKUP") {
             if (op == "FREE") {
                 const long long upper = static_cast<long long>(
-                std::max(1LL,std::min( 0LL + n * blockSize / q , tokenBudget))
+                std::max(1LL,(long long)(3 * n * blockSize / (q / 7)))
             );
             const int count =
                 std::uniform_int_distribution<int>(1, upper)(rng);
