@@ -381,7 +381,7 @@ void displayRequest(id)
 [result.xlsx](result.xlsx)
 ### 实验评估
 #### 摘要
-两种策略的核心结论可以概括为：连续性约束以容量为代价提高速度与局部性。反之，解除连续性约束可以获得更大容量，但会损失扫描时间与离散访存。
+两种策略的核心结论可以概括为：连续性约束以容量为代价提高速度与局部性。反之，解除连续性约束可以获得更大容量，但扫描时间更长 访存更离散。
 #### 运行过程中两个Strategy的表现
 两种策略共用同一操作流 随操作推进 内存占用逐渐爬升至稳态 我们在同一次运行中，在执行至20%、50%、100%操作数处记录累积耗时 对应负载由低、中、高 除耗时外的其余指标均为整段运行的累计或平均。
 本节仅分析耗时维度 可以发现：
@@ -395,10 +395,10 @@ void displayRequest(id)
 而内存不足失败率随BlockSize反向变化：
    1. Contiguous Strategy下内存不足失败率随BlockSize增大小幅下降（45.9%→40.6%）：单请求所需的连续块数减少 需要的连续空闲段更短 在碎片化的间隙中更容易被满足。
    2. Paged Strategy下内存不足失败率随BlockSize增大上升（9.3%→14.1%）：Paged Strategy 分配失败来自容量约束 尾部块内浪费随BlockSize增大而增大 有效容量减少 失败率随之上升
-1. 内存驻留token与未使用token：Paged Strategy驻留token量约为内存总容量的89%~99%，且随BlockSize增大缓慢下降 与其失败率上升一致；Contiguous Strategy驻留token量约为内存总容量的40%~43%，几乎不随BlockSize变化 两者相差2.1~2.5倍。未使用token数则几乎与策略无关，仅随BlockSize增大急剧上升，说明尾部块内浪费由BlockSize大小决定，特别地，BlockSize=16384时约占容量的10%
-2. 平均内存利用率：BlockSize不超过256时两策略均高于99.5% BlockSize达2048后出现分化 Contiguous Strategy开始下降 而Paged Strategy保持较高值。作为比值量，其原因不是Paged Strategy分配token更多，而在于失败时大BlockSize下Contiguous Strategy的失败集中于需要长连续段的大请求 存活请求偏小 导致尾部Block浪费大量未使用空间； Paged Strategy大小请求均能分配 尾部Block浪费空间较少。
-3. 平均碎片率：Contiguous Strategy保持平稳在11.9%~13.0% 随BlockSize增大仅小幅下降 首次分配总是从低地址填充 空闲空间始终保持为尾部整段外加少量间隙；Paged Strategy高达79.5%~82.8%，源于随机分配与释放操作导致的内存碎片多。且该值不随BlockSize单调变化 是由于BlockSize较大时单次请求使用的空闲块数很少 空闲块更容易连成整段 使最长连续空闲段的占比回升
-4. 平均内存物理局部率：Contiguous Strategy恒为100%，作为对照 由连续分配保证；Paged Strategy下该值随BlockSize增大而减少，拟合后单次请求块数约为$tokenCount/BlockSize$，而`allocate`分配的空闲块位置接近随机 相邻块恰好连续的概率低。特别地，当BlockSize=16384时单次请求往往仅占1~2块，局部率大幅下降。
+3. 内存驻留token与未使用token：Paged Strategy驻留token量约为内存总容量的89%~99%，且随BlockSize增大缓慢下降 与其失败率上升一致；Contiguous Strategy驻留token量约为内存总容量的40%~43%，几乎不随BlockSize变化 两者相差超过2倍。未使用token数则几乎与策略无关，仅随BlockSize增大急剧上升，说明尾部块内浪费由BlockSize大小决定，特别地，BlockSize=16384时约占容量的10%
+4. 平均内存利用率：BlockSize不超过256时两策略均高于99.5% BlockSize达2048后出现分化 Contiguous Strategy开始下降 而Paged Strategy保持较高值。作为比值量，其原因不是Paged Strategy分配token更多，而在于失败时大BlockSize下Contiguous Strategy的失败集中于需要长连续段的大请求 成功的请求偏小 导致尾部Block浪费大量未使用空间； Paged Strategy大小请求均能成功分配 成功的请求整体规模更大 近乎全空的整块占比更低 平均填充密度更高。
+5. 平均碎片率：Contiguous Strategy平稳保持在11.9%~13.0% 随BlockSize增大仅小幅下降 首次分配总是从低地址填充 空闲空间始终保持为尾部整段外加少量间隙；Paged Strategy高达79.5%~82.8%，源于随机分配与释放操作导致的内存碎片多。且该值不随BlockSize单调变化 是由于BlockSize较大时单次请求使用的空闲块数很少 空闲块更容易连成整段 使最长连续空闲段的占比回升
+6. 平均内存物理局部率：Contiguous Strategy恒为100%，作为对照 由连续分配保证；Paged Strategy下该值随BlockSize增大而减少，拟合后单次请求块数约为$tokenCount/BlockSize$，而`allocate`分配的空闲块位置接近随机 相邻块恰好连续的概率低。特别地，当BlockSize=16384时单次请求往往仅占1~2块，局部率大幅下降。
 
 #### Buckets Size 对系统的影响
 Buckets Size作为哈希数组的大小 直接影响哈希冲突的概率 我们测量了Buckets Size=37 137 227下两个Strategy的表现 可以发现：
