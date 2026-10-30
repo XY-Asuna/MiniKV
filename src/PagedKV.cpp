@@ -77,7 +77,10 @@ bool PagedKV::allocate(const std::string& id, int tokenCount)
             break;
     }
     if((long long)s_ * available_count < tokenCount)
+    {
+        allocate_failure_memory_not_enough ++;
         return 0;
+    }
     total_token_count += tokenCount;
     total_block_count += available_count;
     unused_token_count += (long long)s_ * available_count - tokenCount;
@@ -139,7 +142,10 @@ bool PagedKV::append(const std::string& id, int newTokenCount)
             break;
     }
     if((long long)last_left + s_ * available_count < newTokenCount)
+    {
+        allocate_failure_memory_not_enough ++;
         return 0;
+    }
     total_token_count += newTokenCount;
     total_block_count += available_count;
     unused_token_count += (long long)s_ * available_count - newTokenCount;

@@ -8,6 +8,7 @@ extern int bucketsSize;
 extern int total_token_count;
 extern int total_block_count;
 extern int unused_token_count;
+extern int allocate_failure_memory_not_enough;
 class ContiguousKV : public MiniKV {
 public:
     ContiguousKV(int blockCount, int blockSize);

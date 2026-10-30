@@ -12,7 +12,8 @@
 // 哈希桶数量，默认 17；可用 --buckets <n> 在运行时修改。
 int bucketsSize = 17;
 
-int allocate_failure_count = 0;
+int allocate_failure_count = 0 , allocate_failure_memory_not_enough = 0;
+int allocate_total_count = 0;
 int total_token_count = 0 , total_block_count = 0;
 int unused_token_count = 0;
 
@@ -68,11 +69,12 @@ void parseOps(int q, Op* ops, int& parsedCount)
 double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int parsedCount, bool silent)
 {
     allocate_failure_count = 0;
+    allocate_total_count = 0;
     unused_token_count = 0;
     total_token_count = total_block_count = 0;
-    
-    int MU_count = 0 , UN_count = 0 , FM_count = 0;
-    double MU_sum = 0.0 , UN_sum = 0.0 , FM_sum = 0.0;
+    allocate_failure_memory_not_enough = 0;
+    int MU_count = 0 , FM_count = 0 , LOC_breaks = 0 , LOC_adjacencies = 0;
+    double MU_sum = 0.0 , FM_sum = 0.0;
     
 
     std::streambuf* savedBuf = nullptr;
@@ -83,6 +85,9 @@ double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int 
         std::cout.rdbuf(nullptr);
     }
     const auto start = std::chrono::steady_clock::now();
+    //0.2q与0.5q处记录时间切片 从start起算 含构造函数
+    const int q2 = parsedCount / 5 , q5 = parsedCount / 2;
+    std::chrono::steady_clock::time_point t2 = start , t5 = start;
 
     MiniKV* manager;
     if (mode == "contiguous")
@@ -93,10 +98,13 @@ double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int 
 
     for (int i = 0; i < parsedCount; ++i)
     {
+        if(i == q2) t2 = std::chrono::steady_clock::now();
+        if(i == q5) t5 = std::chrono::steady_clock::now();
         const Op& op = ops[i];
         switch (op.type)
         {
         case OP_ALLOC:
+            allocate_total_count++;
             if (!kv.allocate(op.id, op.count))
             {
                 ++allocate_failure_count;
@@ -106,6 +114,7 @@ double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int 
                 std::cout << "OK" << '\n';
             break;
         case OP_APPEND:
+            allocate_total_count++;
             if (!kv.append(op.id, op.count))
             {
                 ++allocate_failure_count;
@@ -123,9 +132,15 @@ double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int 
             if (!request) std::cout << "NOT FOUND";
             else
             {
-                int blocks = 0;
-                for (const BlockNode* p = request->head; p; p = p->next) ++blocks;
+                int blocks = 1 , breaks = 0 , lastIndex = request->head->index;
+                for (const BlockNode* p = request->head->next; p; p = p->next)
+                {
+                    if(p->index != lastIndex + 1) breaks++;
+                    lastIndex = p->index;
+                    ++blocks;
+                }
                 std::cout << "FOUND " << request->tokenCount << ' ' << blocks;
+                LOC_breaks += breaks , LOC_adjacencies += blocks - 1;
             }
             std::cout << '\n';
             break;
@@ -149,10 +164,7 @@ double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int 
         if(!(i % 1000))
         {
             if(total_block_count > 0)
-            {
                 MU_count++ , MU_sum += 100.0 * total_token_count / total_block_count / s;
-                UN_count++ , UN_sum += 100.0 * unused_token_count / total_block_count / s;
-            }
             if(silent && n - total_block_count > 0)
             {
                 std::cout.rdbuf(&savedStrBuf);
@@ -192,15 +204,22 @@ double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int 
         std::cerr << "[mode] " << mode << '\n';
         std::cerr << "n=" << n << " blockSize=" << s << " bucketsSize=" << bucketsSize
                   << " q=" << q << '\n';
-        std::cerr << "[timing] " << mode << ": " << std::chrono::duration<double, std::milli>(end - start).count() << " ms" << std::endl;
-        std::cerr << "allocate failure count: " << allocate_failure_count << std::endl;
+        std::cerr << "0.2q time : " << std::chrono::duration<double, std::milli>(t2 - start).count() << " ms" << std::endl;
+        std::cerr << "0.5q time : " << std::chrono::duration<double, std::milli>(t5 - start).count() << " ms" << std::endl;
+        std::cerr << "1.0q time : " << std::chrono::duration<double, std::milli>(end - start).count() << " ms" << std::endl;
+        
+        std::cerr << "total token count: " << total_token_count << std::endl;
+        std::cerr << "allocate failure count: " << allocate_failure_count << "/" << allocate_total_count
+                  << " (" << (allocate_total_count > 0 ? 100.0 * allocate_failure_count / allocate_total_count : 0.0) << "\%)" << std::endl;
+        std::cerr << "allocate failure (memory not enough) count: " << allocate_failure_memory_not_enough << "/" << allocate_total_count
+                  << " (" << (allocate_total_count > 0 ? 100.0 * allocate_failure_memory_not_enough / allocate_total_count : 0.0) << "\%)" << std::endl;
         std::cerr << "unused token count: " << unused_token_count << std::endl;
         if(MU_count > 0)
             std::cerr << "average Memory Utilization(total token/total block capacity): " << MU_sum / MU_count << "\%\n";
         if(FM_count > 0)
             std::cerr << "average Fragmentation: " << FM_sum / FM_count << "\%\n";
-        if(UN_count > 0)
-            std::cerr << "average Unused Token Utilization(unused token/total block capacity): " << UN_sum / UN_count << "\%\n";   
+        if(LOC_adjacencies > 0)
+            std::cerr << "average Request Locality(1 - total breaks/total adjacencies): " << 100.0 * (1 - 1.0 * LOC_breaks / LOC_adjacencies) << "\%\n";
         std::cerr << "---------------\n";
     }
     return std::chrono::duration<double, std::milli>(end - start).count();
@@ -210,7 +229,7 @@ double runOnce(const std::string& mode, int n, int s, int q, const Op* ops, int 
 
 int main(int argc, char* argv[])
 {
-    // --perf：性能测试模式，屏蔽全部中间输出；--turn <n>：指定测试数据文件（缺省 gen.in）；--buckets <n>：修改哈希桶数量（缺省 17）。
+    // --perf：性能测试模式，屏蔽全部中间输出；--turn <n>：指定测试数据文件（缺省 gen.in）；--buckets <n>：修改哈希桶数量。
     bool perfMode = false;
     char* turn = nullptr;
     for (int i = 1; i < argc; ++i)

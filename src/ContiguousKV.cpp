@@ -80,7 +80,11 @@ bool ContiguousKV::allocate(const std::string& id, int tokenCount)
         start++;
     }
     if(start >= n_)
+    {
+        allocate_failure_memory_not_enough ++;
         return 0;
+    }
+        
     //允许分配 
     total_token_count += tokenCount;
     total_block_count += block_count;
@@ -139,7 +143,11 @@ bool ContiguousKV::append(const std::string& id, int newTokenCount)
         if(memory_[i].owner=="")
             block_count++;
         else
+        {
+            allocate_failure_memory_not_enough ++;
             return 0;
+        }
+            
         if((long long)last_left + s_ * block_count >= newTokenCount)
             break;
     }
