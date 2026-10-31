@@ -1,4 +1,5 @@
 # 实验报告
+
 实验所有代码 数据 等文件详细可见[github repo](https://github.com/XY-Asuna/MiniKV)（ https://github.com/XY-Asuna/MiniKV ）
 ## 数据结构设计
 ![数据结构设计图](数据结构设计图.png)
@@ -343,7 +344,36 @@ void displayRequest(id)
 #### 复杂度分析
 1. 调用`lookup`函数的时间复杂度为 $O(1)$
 2. 遍历`BlockNode`链表的时间复杂度为 $O(n)$
-## 实验评估与算法分析
+## 算法分析与实验评估
+### 算法分析
+#### 时间复杂度分析
+各个函数时间复杂度汇总如下：
+|函数|最坏时间复杂度|平均时间复杂度|说明|
+|---|---|---|---|
+|constructor|O(n)|O(n)|主要耗时为 遍历Memory初始化以及遍历Buckets初始化Request链表|
+|destructor|O(n)|O(n)|主要耗时为 遍历Memory释放以及遍历Buckets释放Request链表 注意$\sum$ BlockNode$ \leq$ n|
+|allocate|O(n)|O(n)|主要耗时为 遍历Memory寻找空闲块以及遍历Memory更新相应信息|
+|append|O(n)|O(n)|主要耗时为 遍历Memory寻找空闲块 遍历Memory更新相应信息 维护BlockNode链表|
+|lookup|O(k+m)|O(1)|主要耗时为计算哈希值以及遍历Buckets对应的Request链表|
+|free|O(n)|O(n)|主要耗时为 遍历BlockNode链表释放内存块以及维护Buckets对应的Request链表|
+|displayMemory|O(n)|O(n)|主要耗时为遍历Memory数组输出信息|
+|displayRequest|O(n)|O(n)|主要耗时为遍历BlockNode链表输出信息|
+
+注：我们认为 n $>>$ k,m 即当复杂度为 O(n) 时 可忽略k+m的影响
+
+因此 我们可以认为整个系统的时间复杂度为 O(n)
+
+#### 空间复杂度分析
+|结构|空间复杂度|说明|
+|---|---|---|
+|Memory数组|O(n)|每个Block存储owner与used信息|
+|Buckets数组|O(BucketsSize)|每桶一个空头Request节点|
+|Request节点|O(id数)||
+|BlockNode链表|O(n)|各请求块数之和即$\sum\lceil$ tokenCount$/$BlockSize$\rceil$不超过n|
+|to_use_index|O(n)|（仅Paged）`allocate`与`append`统计空闲块下标的辅助数组|
+
+两种策略的总空间复杂度均为O(n+BucketsSize)。Paged Strategy增加一个O(n)的辅助数组
+
 ### 实验说明
 #### 数据说明
 为了更好地评估两个策略的性能表现 我们对 `gen.cpp` 生成数据进行了部分调整 下面分点叙述调整内容并说明其正当性。
@@ -398,45 +428,17 @@ void displayRequest(id)
 3. 内存驻留token与未使用token：Paged Strategy驻留token量约为内存总容量的89%~99%，且随BlockSize增大缓慢下降 与其失败率上升一致；Contiguous Strategy驻留token量约为内存总容量的40%~43%，几乎不随BlockSize变化 两者相差超过2倍。未使用token数则几乎与策略无关，仅随BlockSize增大急剧上升，说明尾部块内浪费由BlockSize大小决定，特别地，BlockSize=16384时约占容量的10%
 4. 平均内存利用率：BlockSize不超过256时两策略均高于99.5% BlockSize达2048后出现分化 Contiguous Strategy开始下降 而Paged Strategy保持较高值。作为比值量，其原因不是Paged Strategy分配token更多，而在于失败时大BlockSize下Contiguous Strategy的失败集中于需要长连续段的大请求 成功的请求偏小 导致尾部Block浪费大量未使用空间； Paged Strategy大小请求均能成功分配 成功的请求整体规模更大 近乎全空的整块占比更低 平均填充密度更高。
 5. 平均碎片率：Contiguous Strategy平稳保持在11.9%~13.0% 随BlockSize增大仅小幅下降 首次分配总是从低地址填充 空闲空间始终保持为尾部整段外加少量间隙；Paged Strategy高达79.5%~82.8%，源于随机分配与释放操作导致的内存碎片多。且该值不随BlockSize单调变化 是由于BlockSize较大时单次请求使用的空闲块数很少 空闲块更容易连成整段 使最长连续空闲段的占比回升
-6. 平均内存物理局部率：Contiguous Strategy恒为100%，作为对照 由连续分配保证；Paged Strategy下该值随BlockSize增大而减少，拟合后单次请求块数约为$tokenCount/BlockSize$，而`allocate`分配的空闲块位置接近随机 相邻块恰好连续的概率低。特别地，当BlockSize=16384时单次请求往往仅占1~2块，局部率大幅下降。
+6. 平均内存物理局部率：Contiguous Strategy恒为100%，作为对照 由连续分配保证；Paged Strategy下该值随BlockSize增大而减少，拟合后单次请求块数约为tokenCount$/$BlockSize，而`allocate`分配的空闲块位置接近随机 相邻块恰好连续的概率低。特别地，当BlockSize=16384时单次请求往往仅占1~2块，局部率大幅下降。
 
 #### Buckets Size 对系统的影响
-Buckets Size作为哈希数组的大小 直接影响哈希冲突的概率 我们测量了Buckets Size=37 137 227下两个Strategy的表现 可以发现：
+Buckets Size作为哈希数组的大小 直接影响哈希冲突的概率 我们测量了Buckets Size=37、137、227下两个Strategy的表现 可以发现：
 1. 所有非耗时指标在三个Buckets Size下完全相同：桶数组只作用于查找路径 不影响分配决策与布局。
 2. 耗时上影响总体较小但方向一致：在计时波动范围内，Buckets Size增大使得哈希冲突减少 `lookup`的链表遍历成本下降 使得两策略的耗时均略微下降。
 3. 影响有限的原因：该数据下，并发存活id至多151个 即使仅37个桶 期望链长也只有约4 `lookup`的链表遍历成本远低于每次写入操作的O(n)内存扫描 桶数带来的收益被内存扫描覆盖 这与算法分析中`lookup`平均复杂度O(1)的结论一致
 
 #### 综合评价
 Contiguous Strategy和Paged Strategy二者的差异本质上是连续性约束的取舍，对KV cache这类先写入后重访的负载，若重访频繁 则局部性价值高 采取Contiguous Strategy更合适；若对内存容量更敏感 需要准入更多请求 则Paged Strategy更合适。
-### 算法分析
-#### 时间复杂度分析
-各个函数时间复杂度汇总如下：
-|函数|最坏时间复杂度|平均时间复杂度|说明|
-|---|---|---|---|
-|constructor|O(n)|O(n)|主要耗时为 遍历Memory初始化以及遍历Buckets初始化Request链表|
-|destructor|O(n)|O(n)|主要耗时为 遍历Memory释放以及遍历Buckets释放Request链表 注意$\sum$ BlockNode$ \leq$ n|
-|allocate|O(n)|O(n)|主要耗时为 遍历Memory寻找空闲块以及遍历Memory更新相应信息|
-|append|O(n)|O(n)|主要耗时为 遍历Memory寻找空闲块 遍历Memory更新相应信息 维护BlockNode链表|
-|lookup|O(k+m)|O(1)|主要耗时为计算哈希值以及遍历Buckets对应的Request链表|
-|free|O(n)|O(n)|主要耗时为 遍历BlockNode链表释放内存块以及维护Buckets对应的Request链表|
-|displayMemory|O(n)|O(n)|主要耗时为遍历Memory数组输出信息|
-|displayRequest|O(n)|O(n)|主要耗时为遍历BlockNode链表输出信息|
-
-注：我们认为 n $>>$ k,m 即当复杂度为 O(n) 时 可忽略k+m的影响
-
-因此 我们可以认为整个系统的时间复杂度为 O(n)
-
-#### 空间复杂度分析
-|结构|空间复杂度|说明|
-|---|---|---|
-|Memory数组|O(n)|每个Block存储owner与used信息|
-|Buckets数组|O(bucketsSize)|每桶一个空头Request节点|
-|Request节点|O(存活id数)|实验中并发存活id不超过151|
-|BlockNode链表|全局O(n)|各请求块数之和即$\sum\lceil$ tokenCount$/$BlockSize$\rceil$不超过n|
-|to_use_index（仅Paged）|O(n)|`allocate`与`append`收集空闲块下标的辅助数组|
-
-两种策略的总空间复杂度均为O(n+bucketsSize)。Paged Strategy增多一个O(n)的辅助数组
 
 #### 复杂度与实验实证
 1. 写入操作由O(n)内存扫描主导 实验中BlockSize大小与耗时呈现线性关系。
-2. `lookup`平均O(1)且链长很短 实验中Buckets Size改变几乎不影响系统性能，说明哈希查找并非瓶颈，系统性能由O(n)扫描决定
+2. `lookup`平均O(1)且链长很短 实验中Buckets Size改变几乎不影响系统性能，说明哈希查找不是系统瓶颈，系统性能由O(n)扫描决定

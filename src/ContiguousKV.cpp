@@ -151,8 +151,11 @@ bool ContiguousKV::append(const std::string& id, int newTokenCount)
         if((long long)last_left + s_ * block_count >= newTokenCount)
             break;
     }
-    if((long long)last_left + s_ * block_count < newTokenCount) return 0;
-
+    if((long long)last_left + s_ * block_count < newTokenCount)
+    {
+        allocate_failure_memory_not_enough ++;
+        return 0;
+    }
     total_token_count += newTokenCount;
     total_block_count += block_count;
     unused_token_count += (long long)s_ * block_count - newTokenCount;
